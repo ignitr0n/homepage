@@ -1,3 +1,5 @@
-# ignitr0n.github.io/homepage
-This is my personal website, and also includes a template for a project portfolio. I will add to this as time goes on.
-https://ignitr0n.github.io/homepage/
+# ignitr0n homepage
+
+Source for [ignitron.org](https://ignitron.org).
+
+The site is a self-contained static page with an interactive hexadecimal navigation field, theme music, and a Web Audio frequency visualizer.
