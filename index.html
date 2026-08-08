@@ -180,18 +180,6 @@ body {
   z-index: 5;
 }
 
-.status {
-  position: absolute;
-  right: 4px;
-  bottom: 3px;
-  z-index: 10;
-  padding: 1px 3px;
-  color: #086c08;
-  background: rgba(0,0,0,.9);
-  font-size: 11px;
-  user-select: none;
-}
-
 .terminal::after {
   content: "";
   pointer-events: none;
@@ -217,10 +205,6 @@ body {
   .screen {
     min-width: 82ch;
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .status::before { content: "REDUCED MOTION / "; }
 }
 
 /* One actual full-window background layer. */
@@ -280,11 +264,6 @@ body {
   background: rgba(0,0,0,.88) !important;
 }
 
-/* Keep status readable without creating a large panel. */
-.status {
-  background: rgba(0,0,0,.72) !important;
-}
-
 .visualizer {
   position: fixed;
   left: 0;
@@ -302,8 +281,9 @@ body {
 
 .music-toggle {
   position: fixed;
-  left: 10px;
+  left: 50%;
   bottom: 10px;
+  transform: translateX(-50%);
   z-index: 20;
   border: 1px solid var(--dim);
   padding: 4px 7px;
@@ -401,7 +381,6 @@ body {
 
 <main class="terminal" id="terminal" aria-label="Scrolling hexadecimal navigation field">
   <div class="screen" id="screen"></div>
-  <div class="status" id="status">SCANNING FAST</div>
 </main>
 
 <script>
@@ -435,12 +414,11 @@ body {
   const PLACEMENTS = [
     { link: 0, row: 7,  startByte: 3 },
     { link: 1, row: 15, startByte: 7 },
-    { link: 2, row: 23, startByte: 4 }
+    { link: 2, row: 19, startByte: 4 }
   ];
 
   const screen = document.getElementById("screen");
   const terminal = document.getElementById("terminal");
-  const status = document.getElementById("status");
 
   const BYTES_PER_ROW = 16;
   let visibleRows = 36;
@@ -651,13 +629,11 @@ body {
       const enter = () => {
         paused = true;
         setPairHot(pairId, true);
-        status.textContent = "PAUSED / LINK";
       };
 
       const leave = () => {
         setPairHot(pairId, false);
         paused = false;
-        status.textContent = "SCANNING FAST";
       };
 
       el.addEventListener("mouseenter", enter);
@@ -681,7 +657,6 @@ body {
 
   function start() {
     if (reduceMotion) {
-      status.textContent = "STATIC / REDUCED MOTION";
       return;
     }
 
@@ -721,6 +696,8 @@ body {
   let audioContext = null;
   let analyser = null;
   let frequencyData = null;
+  let peaks = null;
+  let peakHold = null;
   let animationFrame = null;
 
   function sizeCanvas() {
@@ -749,13 +726,30 @@ body {
     const barWidth = Math.max(1, (canvas.width / 2) / bins - gap);
     const center = canvas.width / 2;
 
-    context.fillStyle = "rgba(70, 255, 70, 0.34)";
+    context.fillStyle = "rgba(85, 85, 85, 0.72)";
 
     for (let index = 0; index < bins; index += 1) {
       const height = (frequencyData[index] / 255) * canvas.height;
       const offset = index * (barWidth + gap);
+
+      if (height >= peaks[index]) {
+        peaks[index] = height;
+        peakHold[index] = 18;
+      } else if (peakHold[index] > 0) {
+        peakHold[index] -= 1;
+      } else {
+        peaks[index] = Math.max(height, peaks[index] - canvas.height * 0.008);
+      }
+
       context.fillRect(center + offset, canvas.height - height, barWidth, height);
       context.fillRect(center - offset - barWidth, canvas.height - height, barWidth, height);
+
+      const capHeight = Math.max(2, canvas.height * 0.008);
+      const capY = Math.max(0, canvas.height - peaks[index] - capHeight);
+      context.fillStyle = "rgba(85, 85, 85, 0.96)";
+      context.fillRect(center + offset, capY, barWidth, capHeight);
+      context.fillRect(center - offset - barWidth, capY, barWidth, capHeight);
+      context.fillStyle = "rgba(85, 85, 85, 0.72)";
     }
 
     animationFrame = window.requestAnimationFrame(draw);
@@ -767,7 +761,11 @@ body {
     button.textContent = playing ? "♫ MUSIC: ON" : "♫ MUSIC: OFF";
     canvas.classList.toggle("active", playing);
 
-    if (!playing) context.clearRect(0, 0, canvas.width, canvas.height);
+    if (!playing) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      if (peaks) peaks.fill(0);
+      if (peakHold) peakHold.fill(0);
+    }
   }
 
   async function toggleMusic() {
@@ -778,6 +776,8 @@ body {
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.82;
       frequencyData = new Uint8Array(analyser.frequencyBinCount);
+      peaks = new Float32Array(analyser.frequencyBinCount / 2);
+      peakHold = new Uint8Array(analyser.frequencyBinCount / 2);
       const source = audioContext.createMediaElementSource(audio);
       source.connect(analyser);
       analyser.connect(audioContext.destination);
