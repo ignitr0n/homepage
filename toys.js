@@ -385,7 +385,8 @@
       canvas.remove();
       return;
     }
-    const hud = el("div", "tron-hud", "TRON SIGNAL // CLICK THE GREEN SCOUT");
+    const hud = el("div", "tron-hud");
+    hud.hidden = true;
     body.appendChild(hud);
     const units = [];
     const shots = [];
@@ -672,9 +673,8 @@
       context.globalCompositeOperation = "source-over";
       hud.textContent = selected
         ? `PILOTING ${selected.name} // ARROWS: DRIVE // SPACE: FIRE // HP ${selected.hp}/3`
-        : battleActive
-          ? `TRON GRID ACTIVE // ${units.filter(unit => unit.active && !unit.scout).length} HOSTILES ON GRID`
-          : "TRON SIGNAL // CLICK THE GREEN SCOUT";
+        : `TRON GRID ACTIVE // ${units.filter(unit => unit.active && !unit.scout).length} HOSTILES ON GRID`;
+      hud.hidden = !battleActive;
       requestAnimationFrame(battleLoop);
     }
 

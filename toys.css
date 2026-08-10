@@ -163,6 +163,7 @@ body[data-palette="red-alert"] {
   left: 0;
   top: 0;
   z-index: 41;
+  display: none;
 }
 
 .toy-button {
