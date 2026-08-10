@@ -238,6 +238,143 @@
 
   startDvdBouncers();
 
+  function startWireframeSphere() {
+    const canvas = el("canvas", "webgl-sphere");
+    canvas.setAttribute("aria-hidden", "true");
+    body.appendChild(canvas);
+    const gl = canvas.getContext("webgl", { alpha: true, antialias: true });
+    if (!gl) {
+      canvas.remove();
+      return;
+    }
+
+    const vertexSource = `
+      attribute vec3 a_position;
+      uniform vec2 u_center;
+      uniform vec2 u_scale;
+      uniform vec2 u_rotation;
+      void main() {
+        float cx = cos(u_rotation.x);
+        float sx = sin(u_rotation.x);
+        float cy = cos(u_rotation.y);
+        float sy = sin(u_rotation.y);
+        vec3 p = a_position;
+        p = vec3(cy * p.x + sy * p.z, p.y, -sy * p.x + cy * p.z);
+        p = vec3(p.x, cx * p.y - sx * p.z, sx * p.y + cx * p.z);
+        gl_Position = vec4(u_center + p.xy * u_scale, 0.0, 1.0);
+      }`;
+    const fragmentSource = `
+      precision mediump float;
+      void main() { gl_FragColor = vec4(0.0, 1.0, 0.0, 0.82); }`;
+
+    function shader(type, source) {
+      const result = gl.createShader(type);
+      gl.shaderSource(result, source);
+      gl.compileShader(result);
+      if (!gl.getShaderParameter(result, gl.COMPILE_STATUS)) {
+        gl.deleteShader(result);
+        return null;
+      }
+      return result;
+    }
+
+    const vertexShader = shader(gl.VERTEX_SHADER, vertexSource);
+    const fragmentShader = shader(gl.FRAGMENT_SHADER, fragmentSource);
+    if (!vertexShader || !fragmentShader) {
+      canvas.remove();
+      return;
+    }
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      canvas.remove();
+      return;
+    }
+
+    const vertices = [];
+    const rings = 12;
+    const segments = 24;
+    const point = (latitude, longitude) => {
+      const phi = latitude * Math.PI / rings - Math.PI / 2;
+      const theta = longitude * Math.PI * 2 / segments;
+      const cosPhi = Math.cos(phi);
+      return [cosPhi * Math.cos(theta), Math.sin(phi), cosPhi * Math.sin(theta)];
+    };
+    const line = (a, b) => vertices.push(...a, ...b);
+    for (let latitude = 1; latitude < rings; latitude += 1) {
+      for (let longitude = 0; longitude < segments; longitude += 1) {
+        line(point(latitude, longitude), point(latitude, (longitude + 1) % segments));
+      }
+    }
+    for (let longitude = 0; longitude < segments; longitude += 1) {
+      for (let latitude = 0; latitude < rings; latitude += 1) {
+        line(point(latitude, longitude), point(latitude + 1, longitude));
+      }
+    }
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, "a_position");
+    const center = gl.getUniformLocation(program, "u_center");
+    const scale = gl.getUniformLocation(program, "u_scale");
+    const rotation = gl.getUniformLocation(program, "u_rotation");
+    const radius = 64;
+    const sphere = { x: innerWidth * .3, y: radius + 20, vx: 145, vy: 40 };
+    let previous = performance.now();
+    let spin = 0;
+
+    function resizeSphere() {
+      const ratio = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(innerWidth * ratio));
+      canvas.height = Math.max(1, Math.floor(innerHeight * ratio));
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      sphere.x = Math.max(radius, Math.min(innerWidth - radius, sphere.x));
+      sphere.y = Math.max(radius, Math.min(innerHeight - radius, sphere.y));
+    }
+
+    function drawSphere(now) {
+      const elapsed = Math.min((now - previous) / 1000, .035);
+      previous = now;
+      sphere.vy += 430 * elapsed;
+      sphere.x += sphere.vx * elapsed;
+      sphere.y += sphere.vy * elapsed;
+      if (sphere.x + radius >= innerWidth || sphere.x - radius <= 0) {
+        sphere.x = Math.max(radius, Math.min(innerWidth - radius, sphere.x));
+        sphere.vx *= -.92;
+      }
+      if (sphere.y + radius >= innerHeight) {
+        sphere.y = innerHeight - radius;
+        sphere.vy *= -.88;
+        if (Math.abs(sphere.vy) < 105) sphere.vy = -285;
+      } else if (sphere.y - radius <= 0) {
+        sphere.y = radius;
+        sphere.vy = Math.abs(sphere.vy) * .9;
+      }
+      spin += elapsed;
+
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.enableVertexAttribArray(position);
+      gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 0, 0);
+      gl.uniform2f(center, sphere.x / innerWidth * 2 - 1, 1 - sphere.y / innerHeight * 2);
+      gl.uniform2f(scale, radius * 2 / innerWidth, radius * 2 / innerHeight);
+      gl.uniform2f(rotation, spin * .73, spin * 1.11);
+      gl.drawArrays(gl.LINES, 0, vertices.length / 3);
+      requestAnimationFrame(drawSphere);
+    }
+
+    addEventListener("resize", resizeSphere, { passive: true });
+    resizeSphere();
+    if (!reduceMotion) requestAnimationFrame(drawSphere);
+  }
+
+  startWireframeSphere();
+
   const deck = makePanel("command-deck", "LOCAL CONSOLE // TTY7");
   const deckBody = el("div", "toy-panel-body");
   const output = el("div", "command-output", "ignitr0n toybox 1.0\nType 'help' or press ? for field manual.\n");

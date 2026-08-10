@@ -41,6 +41,8 @@ body[data-palette="red-alert"] {
 
 .control-stack .music-toggle {
   position: fixed;
+  right: auto;
+  bottom: auto;
   transform: none;
 }
 
@@ -86,11 +88,20 @@ body[data-palette="red-alert"] {
 }
 
 .counter-frame {
-  width: 72px;
+  width: 14px;
   height: 18px;
   border: 0;
   color-scheme: dark;
-  background: transparent;
+  background: #000;
+  pointer-events: none;
+}
+
+.webgl-sphere {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  width: 100vw;
+  height: 100vh;
   pointer-events: none;
 }
 
