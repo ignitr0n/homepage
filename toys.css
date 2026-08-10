@@ -105,6 +105,29 @@ body[data-palette="red-alert"] {
   pointer-events: none;
 }
 
+.tron-battlefield {
+  position: fixed;
+  inset: 0;
+  z-index: 36;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+.tron-hud {
+  position: fixed;
+  left: 10px;
+  top: 10px;
+  z-index: 42;
+  border: 1px solid var(--dim);
+  padding: 4px 7px;
+  color: var(--green);
+  background: rgba(0, 0, 0, .82);
+  font-size: 10px;
+  pointer-events: none;
+  opacity: .78;
+}
+
 .dvd-logo {
   width: 116px;
   height: 64px;

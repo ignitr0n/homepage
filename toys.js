@@ -166,6 +166,7 @@
       <li><kbd>S</kbd> maps the stars; <kbd>N</kbd> adds RF noise; <kbd>I</kbd> inverts reality.</li>
       <li><kbd>M</kbd> mirrors the terminal; <kbd>P</kbd> pauses the byte stream.</li>
       <li><kbd>A</kbd> opens Packet Catcher; <kbd>?</kbd> toggles this manual.</li>
+      <li>Click a roaming Tron unit to pilot it. Use <kbd>←</kbd>/<kbd>→</kbd> to steer, <kbd>↑</kbd>/<kbd>↓</kbd> for thrust, and <kbd>SPACE</kbd> to fire.</li>
       <li>Click empty terminal space to inspect packets. Click the watermark repeatedly.</li>
       <li>Old spells and famous cheat codes may still work.</li>
     </ul>
@@ -374,6 +375,248 @@
   }
 
   startWireframeSphere();
+
+  function startTronBattle() {
+    const canvas = el("canvas", "tron-battlefield");
+    canvas.setAttribute("aria-hidden", "true");
+    body.appendChild(canvas);
+    const context = canvas.getContext("2d");
+    if (!context) {
+      canvas.remove();
+      return;
+    }
+    const hud = el("div", "tron-hud", "TRON GRID // CLICK A UNIT TO PILOT");
+    body.appendChild(hud);
+    const units = [];
+    const shots = [];
+    const keys = new Set();
+    const colors = ["#00ffff", "#ff9d00"];
+    let selected = null;
+    let previous = performance.now();
+    let pixelRatio = 1;
+
+    function makeUnit(type, team, index) {
+      const margin = 75;
+      const unit = {
+        type,
+        team,
+        x: margin + Math.random() * Math.max(1, innerWidth - margin * 2),
+        y: margin + Math.random() * Math.max(1, innerHeight - margin * 2),
+        angle: Math.random() * Math.PI * 2,
+        speed: type === "plane" ? 72 : 42,
+        radius: type === "plane" ? 20 : 18,
+        hp: 3,
+        cooldown: .4 + Math.random(),
+        brain: Math.random() * 2,
+        name: `${team === 0 ? "CYAN" : "AMBER"}-${type === "tank" ? "T" : "V"}${index + 1}`
+      };
+      units.push(unit);
+    }
+    for (let index = 0; index < 4; index += 1) {
+      makeUnit(index % 2 ? "plane" : "tank", 0, index);
+      makeUnit(index % 2 ? "tank" : "plane", 1, index);
+    }
+
+    function resizeBattlefield() {
+      pixelRatio = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(innerWidth * pixelRatio));
+      canvas.height = Math.max(1, Math.floor(innerHeight * pixelRatio));
+      canvas.style.width = `${innerWidth}px`;
+      canvas.style.height = `${innerHeight}px`;
+      units.forEach(unit => {
+        unit.x = Math.max(unit.radius, Math.min(innerWidth - unit.radius, unit.x));
+        unit.y = Math.max(unit.radius, Math.min(innerHeight - unit.radius, unit.y));
+      });
+    }
+
+    function fire(unit) {
+      if (unit.cooldown > 0) return;
+      unit.cooldown = unit.type === "plane" ? .28 : .55;
+      const muzzle = unit.radius + 7;
+      shots.push({
+        team: unit.team,
+        x: unit.x + Math.cos(unit.angle) * muzzle,
+        y: unit.y + Math.sin(unit.angle) * muzzle,
+        vx: Math.cos(unit.angle) * 310,
+        vy: Math.sin(unit.angle) * 310,
+        life: 2
+      });
+    }
+
+    function wrapAngle(angle) {
+      return Math.atan2(Math.sin(angle), Math.cos(angle));
+    }
+
+    function nearestEnemy(unit) {
+      let target = null;
+      let distance = Infinity;
+      units.forEach(candidate => {
+        if (candidate.team === unit.team) return;
+        const next = Math.hypot(candidate.x - unit.x, candidate.y - unit.y);
+        if (next < distance) { distance = next; target = candidate; }
+      });
+      return { target, distance };
+    }
+
+    function updateUnit(unit, elapsed) {
+      unit.cooldown -= elapsed;
+      if (unit === selected) {
+        if (keys.has("ArrowLeft")) unit.angle -= 2.8 * elapsed;
+        if (keys.has("ArrowRight")) unit.angle += 2.8 * elapsed;
+        if (keys.has("ArrowUp")) unit.speed += 90 * elapsed;
+        if (keys.has("ArrowDown")) unit.speed -= 110 * elapsed;
+        const limit = unit.type === "plane" ? 170 : 105;
+        unit.speed = Math.max(-limit * .35, Math.min(limit, unit.speed));
+        if (keys.has("Space")) fire(unit);
+      } else {
+        const enemy = nearestEnemy(unit);
+        if (enemy.target) {
+          const desired = Math.atan2(enemy.target.y - unit.y, enemy.target.x - unit.x);
+          unit.angle += Math.max(-1, Math.min(1, wrapAngle(desired - unit.angle))) * elapsed * (unit.type === "plane" ? 1.25 : .8);
+          if (Math.abs(wrapAngle(desired - unit.angle)) < .18 && enemy.distance < 420) fire(unit);
+        }
+        unit.brain -= elapsed;
+        if (unit.brain <= 0) {
+          unit.brain = 1.2 + Math.random() * 2.4;
+          unit.angle += (Math.random() - .5) * .9;
+        }
+      }
+      unit.x += Math.cos(unit.angle) * unit.speed * elapsed;
+      unit.y += Math.sin(unit.angle) * unit.speed * elapsed;
+      if (unit.x < unit.radius || unit.x > innerWidth - unit.radius) {
+        unit.x = Math.max(unit.radius, Math.min(innerWidth - unit.radius, unit.x));
+        unit.angle = Math.PI - unit.angle;
+      }
+      if (unit.y < unit.radius || unit.y > innerHeight - unit.radius) {
+        unit.y = Math.max(unit.radius, Math.min(innerHeight - unit.radius, unit.y));
+        unit.angle = -unit.angle;
+      }
+    }
+
+    function drawTank(unit) {
+      context.strokeRect(-15, -10, 25, 20);
+      context.beginPath();
+      context.moveTo(-17, -13); context.lineTo(10, -13);
+      context.moveTo(-17, 13); context.lineTo(10, 13);
+      context.stroke();
+      context.strokeRect(-7, -6, 13, 12);
+      context.beginPath();
+      context.moveTo(3, 0); context.lineTo(22, 0);
+      context.stroke();
+    }
+
+    function drawPlane(unit) {
+      context.beginPath();
+      context.moveTo(22, 0);
+      context.lineTo(-12, -7);
+      context.lineTo(-4, 0);
+      context.lineTo(-12, 7);
+      context.closePath();
+      context.moveTo(3, 0); context.lineTo(-9, -18);
+      context.moveTo(3, 0); context.lineTo(-9, 18);
+      context.stroke();
+    }
+
+    function drawUnit(unit) {
+      context.save();
+      context.translate(unit.x, unit.y);
+      context.rotate(unit.angle);
+      context.strokeStyle = colors[unit.team];
+      context.lineWidth = unit === selected ? 2.2 : 1.3;
+      context.shadowColor = colors[unit.team];
+      context.shadowBlur = unit === selected ? 14 : 7;
+      if (unit.type === "tank") drawTank(unit); else drawPlane(unit);
+      context.restore();
+      context.save();
+      context.translate(unit.x, unit.y);
+      context.strokeStyle = colors[unit.team];
+      context.lineWidth = 1;
+      if (unit === selected) {
+        context.setLineDash([4, 4]);
+        context.beginPath();
+        context.arc(0, 0, unit.radius + 8, 0, Math.PI * 2);
+        context.stroke();
+      }
+      for (let hp = 0; hp < unit.hp; hp += 1) context.strokeRect(-12 + hp * 9, unit.radius + 7, 6, 2);
+      context.restore();
+    }
+
+    function respawn(unit) {
+      unit.hp = 3;
+      unit.x = unit.radius + Math.random() * Math.max(1, innerWidth - unit.radius * 2);
+      unit.y = unit.radius + Math.random() * Math.max(1, innerHeight - unit.radius * 2);
+      unit.angle = Math.random() * Math.PI * 2;
+      unit.speed = unit.type === "plane" ? 72 : 42;
+    }
+
+    function battleLoop(now) {
+      const elapsed = Math.min((now - previous) / 1000, .04);
+      previous = now;
+      units.forEach(unit => updateUnit(unit, elapsed));
+      shots.forEach(shot => {
+        shot.x += shot.vx * elapsed;
+        shot.y += shot.vy * elapsed;
+        shot.life -= elapsed;
+        units.forEach(unit => {
+          if (shot.life <= 0 || unit.team === shot.team) return;
+          if (Math.hypot(unit.x - shot.x, unit.y - shot.y) < unit.radius) {
+            shot.life = 0;
+            unit.hp -= 1;
+            if (unit.hp <= 0) {
+              if (unit === selected) selected = null;
+              respawn(unit);
+            }
+          }
+        });
+      });
+      for (let index = shots.length - 1; index >= 0; index -= 1) {
+        const shot = shots[index];
+        if (shot.life <= 0 || shot.x < 0 || shot.x > innerWidth || shot.y < 0 || shot.y > innerHeight) shots.splice(index, 1);
+      }
+
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      context.clearRect(0, 0, innerWidth, innerHeight);
+      context.globalCompositeOperation = "lighter";
+      shots.forEach(shot => {
+        context.fillStyle = colors[shot.team];
+        context.shadowColor = colors[shot.team];
+        context.shadowBlur = 9;
+        context.fillRect(shot.x - 2, shot.y - 2, 4, 4);
+      });
+      units.forEach(drawUnit);
+      context.globalCompositeOperation = "source-over";
+      hud.textContent = selected
+        ? `PILOTING ${selected.name} // ARROWS: DRIVE // SPACE: FIRE // HP ${selected.hp}/3`
+        : "TRON GRID // CLICK A UNIT TO PILOT";
+      requestAnimationFrame(battleLoop);
+    }
+
+    addEventListener("pointerdown", event => {
+      if (event.target.closest("a, button, input, iframe, .toy-panel")) return;
+      const hit = units
+        .map(unit => ({ unit, distance: Math.hypot(unit.x - event.clientX, unit.y - event.clientY) }))
+        .filter(hitTest => hitTest.distance <= hitTest.unit.radius + 10)
+        .sort((a, b) => a.distance - b.distance)[0];
+      if (hit) {
+        selected = hit.unit;
+        achievement("tron-pilot", "GRID PILOT");
+      }
+    }, { passive: true });
+    addEventListener("keydown", event => {
+      if (event.target.matches("input")) return;
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"].includes(event.code)) {
+        keys.add(event.code);
+        if (selected) event.preventDefault();
+      }
+      if (event.code === "Escape") selected = null;
+    });
+    addEventListener("keyup", event => keys.delete(event.code));
+    addEventListener("resize", resizeBattlefield, { passive: true });
+    resizeBattlefield();
+    if (!reduceMotion) requestAnimationFrame(battleLoop);
+  }
+
+  startTronBattle();
 
   const deck = makePanel("command-deck", "LOCAL CONSOLE // TTY7");
   const deckBody = el("div", "toy-panel-body");
