@@ -11,7 +11,7 @@ The site is a static page with an interactive hexadecimal navigation field, them
 - Keyboard effects include phosphor palettes, glitch/degauss, RF noise, starfield, inversion, mirroring, and byte-stream pause.
 - Clicking empty terminal space inspects a synthetic packet and throws pixel sparks.
 - Packet Catcher is available from the command deck, the `A` key, or a classic cheat code.
-- Autonomous neon tanks and space planes battle across the page; click one and use the arrow keys and Space to pilot it.
+- A lone green scout activates the Tron battle when clicked. Cyan and amber three-ship formations arrive intermittently, hold formation until their first loss, then break and attack at full speed. Click any unit and use the arrow keys and Space to pilot it.
 - Further key sequences, logo clicks, console commands, and achievements are deliberately undocumented.
 
 The original terminal and music logic remain inline in `index.html`. The optional interaction layer is isolated in `toys.css` and `toys.js`.

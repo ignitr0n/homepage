@@ -166,7 +166,7 @@
       <li><kbd>S</kbd> maps the stars; <kbd>N</kbd> adds RF noise; <kbd>I</kbd> inverts reality.</li>
       <li><kbd>M</kbd> mirrors the terminal; <kbd>P</kbd> pauses the byte stream.</li>
       <li><kbd>A</kbd> opens Packet Catcher; <kbd>?</kbd> toggles this manual.</li>
-      <li>Click a roaming Tron unit to pilot it. Use <kbd>←</kbd>/<kbd>→</kbd> to steer, <kbd>↑</kbd>/<kbd>↓</kbd> for thrust, and <kbd>SPACE</kbd> to fire.</li>
+      <li>Click the lone green scout to activate the Tron grid. Click any unit to pilot it; use <kbd>←</kbd>/<kbd>→</kbd> to steer, <kbd>↑</kbd>/<kbd>↓</kbd> for thrust, and <kbd>SPACE</kbd> to fire.</li>
       <li>Click empty terminal space to inspect packets. Click the watermark repeatedly.</li>
       <li>Old spells and famous cheat codes may still work.</li>
     </ul>
@@ -385,36 +385,71 @@
       canvas.remove();
       return;
     }
-    const hud = el("div", "tron-hud", "TRON GRID // CLICK A UNIT TO PILOT");
+    const hud = el("div", "tron-hud", "TRON SIGNAL // CLICK THE GREEN SCOUT");
     body.appendChild(hud);
     const units = [];
     const shots = [];
     const keys = new Set();
-    const colors = ["#00ffff", "#ff9d00"];
+    const colors = ["#00d9ff", "#ff8a00", "#00ff00"];
+    const formations = [];
     let selected = null;
+    let battleActive = false;
+    let spawnTimer = Infinity;
+    let nextTeam = Math.random() < .5 ? 0 : 1;
+    let formationNumber = 0;
     let previous = performance.now();
     let pixelRatio = 1;
 
-    function makeUnit(type, team, index) {
+    function makeUnit(type, team, index, options = {}) {
       const margin = 75;
       const unit = {
         type,
         team,
-        x: margin + Math.random() * Math.max(1, innerWidth - margin * 2),
-        y: margin + Math.random() * Math.max(1, innerHeight - margin * 2),
-        angle: Math.random() * Math.PI * 2,
-        speed: type === "plane" ? 72 : 42,
+        x: options.x ?? margin + Math.random() * Math.max(1, innerWidth - margin * 2),
+        y: options.y ?? margin + Math.random() * Math.max(1, innerHeight - margin * 2),
+        angle: options.angle ?? Math.random() * Math.PI * 2,
+        speed: options.speed ?? (type === "plane" ? 118 : 48),
         radius: type === "plane" ? 20 : 18,
         hp: 3,
         cooldown: .4 + Math.random(),
         brain: Math.random() * 2,
-        name: `${team === 0 ? "CYAN" : "AMBER"}-${type === "tank" ? "T" : "V"}${index + 1}`
+        active: true,
+        scout: Boolean(options.scout),
+        formation: options.formation ?? null,
+        slot: options.slot ?? 0,
+        aggressive: false,
+        name: options.scout ? "GREEN-SCOUT" : `${team === 0 ? "CYAN" : "AMBER"}-${type === "tank" ? "T" : "V"}${index + 1}`
       };
       units.push(unit);
+      return unit;
     }
-    for (let index = 0; index < 4; index += 1) {
-      makeUnit(index % 2 ? "plane" : "tank", 0, index);
-      makeUnit(index % 2 ? "tank" : "plane", 1, index);
+
+    const scout = makeUnit("plane", 2, 0, { scout: true, speed: 135 });
+
+    function spawnFormation(team) {
+      formationNumber += 1;
+      const fromLeft = Math.random() < .5;
+      const angle = fromLeft ? 0 : Math.PI;
+      const x = fromLeft ? 28 : innerWidth - 28;
+      const y = 90 + Math.random() * Math.max(1, innerHeight - 180);
+      const formation = { id: formationNumber, team, broken: false, members: [] };
+      formations.push(formation);
+      const offsets = [[0, 0], [-42, -34], [-42, 34]];
+      offsets.forEach((offset, slot) => {
+        const direction = fromLeft ? 1 : -1;
+        const unit = makeUnit("plane", team, formationNumber * 3 + slot, {
+          x: x + offset[0] * direction,
+          y: y + offset[1],
+          angle,
+          speed: 126,
+          formation,
+          slot
+        });
+        formation.members.push(unit);
+      });
+      if (formationNumber % 2 === 0) {
+        makeUnit("tank", team, formationNumber, { x, y: Math.min(innerHeight - 30, y + 70), angle, speed: 52 });
+      }
     }
 
     function resizeBattlefield() {
@@ -451,7 +486,7 @@
       let target = null;
       let distance = Infinity;
       units.forEach(candidate => {
-        if (candidate.team === unit.team) return;
+        if (!candidate.active || candidate.team === unit.team) return;
         const next = Math.hypot(candidate.x - unit.x, candidate.y - unit.y);
         if (next < distance) { distance = next; target = candidate; }
       });
@@ -459,6 +494,7 @@
     }
 
     function updateUnit(unit, elapsed) {
+      if (!unit.active) return;
       unit.cooldown -= elapsed;
       if (unit === selected) {
         if (keys.has("ArrowLeft")) unit.angle -= 2.8 * elapsed;
@@ -468,18 +504,34 @@
         const limit = unit.type === "plane" ? 170 : 105;
         unit.speed = Math.max(-limit * .35, Math.min(limit, unit.speed));
         if (keys.has("Space")) fire(unit);
+      } else if (unit.formation && !unit.formation.broken && unit.slot > 0) {
+        const leader = unit.formation.members[0];
+        if (!leader?.active) {
+          unit.formation.broken = true;
+        } else {
+          const side = unit.slot === 1 ? -1 : 1;
+          const targetX = leader.x - Math.cos(leader.angle) * 48 + Math.cos(leader.angle + Math.PI / 2) * side * 34;
+          const targetY = leader.y - Math.sin(leader.angle) * 48 + Math.sin(leader.angle + Math.PI / 2) * side * 34;
+          const desired = Math.atan2(targetY - unit.y, targetX - unit.x);
+          unit.angle += Math.max(-1.8, Math.min(1.8, wrapAngle(desired - unit.angle))) * elapsed * 2.2;
+          unit.speed = Math.min(155, 105 + Math.hypot(targetX - unit.x, targetY - unit.y) * .65);
+          const enemy = nearestEnemy(unit);
+          if (enemy.target && enemy.distance < 340 && Math.random() < elapsed * .8) fire(unit);
+        }
       } else {
         const enemy = nearestEnemy(unit);
         if (enemy.target) {
           const desired = Math.atan2(enemy.target.y - unit.y, enemy.target.x - unit.x);
-          unit.angle += Math.max(-1, Math.min(1, wrapAngle(desired - unit.angle))) * elapsed * (unit.type === "plane" ? 1.25 : .8);
-          if (Math.abs(wrapAngle(desired - unit.angle)) < .18 && enemy.distance < 420) fire(unit);
+          const aggression = unit.aggressive ? 2.4 : (unit.type === "plane" ? 1.35 : .8);
+          unit.angle += Math.max(-1, Math.min(1, wrapAngle(desired - unit.angle))) * elapsed * aggression;
+          if (Math.abs(wrapAngle(desired - unit.angle)) < (unit.aggressive ? .3 : .18) && enemy.distance < 470) fire(unit);
         }
         unit.brain -= elapsed;
         if (unit.brain <= 0) {
           unit.brain = 1.2 + Math.random() * 2.4;
           unit.angle += (Math.random() - .5) * .9;
         }
+        if (unit.aggressive && unit.type === "plane") unit.speed = Math.max(unit.speed, 172);
       }
       unit.x += Math.cos(unit.angle) * unit.speed * elapsed;
       unit.y += Math.sin(unit.angle) * unit.speed * elapsed;
@@ -546,25 +598,45 @@
       unit.x = unit.radius + Math.random() * Math.max(1, innerWidth - unit.radius * 2);
       unit.y = unit.radius + Math.random() * Math.max(1, innerHeight - unit.radius * 2);
       unit.angle = Math.random() * Math.PI * 2;
-      unit.speed = unit.type === "plane" ? 72 : 42;
+      unit.speed = unit.scout ? 135 : (unit.type === "plane" ? 118 : 48);
     }
 
     function battleLoop(now) {
       const elapsed = Math.min((now - previous) / 1000, .04);
       previous = now;
+      if (battleActive) {
+        spawnTimer -= elapsed;
+        if (spawnTimer <= 0 && units.filter(unit => unit.active && !unit.scout).length < 16) {
+          spawnFormation(nextTeam);
+          nextTeam = nextTeam === 0 ? 1 : 0;
+          spawnTimer = 8 + Math.random() * 10;
+        }
+      }
       units.forEach(unit => updateUnit(unit, elapsed));
       shots.forEach(shot => {
         shot.x += shot.vx * elapsed;
         shot.y += shot.vy * elapsed;
         shot.life -= elapsed;
         units.forEach(unit => {
-          if (shot.life <= 0 || unit.team === shot.team) return;
+          if (!unit.active || shot.life <= 0 || unit.team === shot.team) return;
           if (Math.hypot(unit.x - shot.x, unit.y - shot.y) < unit.radius) {
             shot.life = 0;
             unit.hp -= 1;
             if (unit.hp <= 0) {
               if (unit === selected) selected = null;
-              respawn(unit);
+              if (unit.scout) {
+                respawn(unit);
+              } else {
+                unit.active = false;
+                if (unit.formation) {
+                  unit.formation.broken = true;
+                  unit.formation.members.forEach(member => {
+                    if (!member.active) return;
+                    member.aggressive = true;
+                    member.speed = Math.max(member.speed, 178);
+                  });
+                }
+              }
             }
           }
         });
@@ -583,22 +655,30 @@
         context.shadowBlur = 9;
         context.fillRect(shot.x - 2, shot.y - 2, 4, 4);
       });
-      units.forEach(drawUnit);
+      units.filter(unit => unit.active).forEach(drawUnit);
       context.globalCompositeOperation = "source-over";
       hud.textContent = selected
         ? `PILOTING ${selected.name} // ARROWS: DRIVE // SPACE: FIRE // HP ${selected.hp}/3`
-        : "TRON GRID // CLICK A UNIT TO PILOT";
+        : battleActive
+          ? `TRON GRID ACTIVE // ${units.filter(unit => unit.active && !unit.scout).length} HOSTILES ON GRID`
+          : "TRON SIGNAL // CLICK THE GREEN SCOUT";
       requestAnimationFrame(battleLoop);
     }
 
     addEventListener("pointerdown", event => {
       if (event.target.closest("a, button, input, iframe, .toy-panel")) return;
       const hit = units
+        .filter(unit => unit.active)
         .map(unit => ({ unit, distance: Math.hypot(unit.x - event.clientX, unit.y - event.clientY) }))
         .filter(hitTest => hitTest.distance <= hitTest.unit.radius + 10)
         .sort((a, b) => a.distance - b.distance)[0];
       if (hit) {
         selected = hit.unit;
+        if (hit.unit.scout && !battleActive) {
+          battleActive = true;
+          spawnTimer = 1.5;
+          toast("TRON GRID ACTIVATED // INCOMING SIGNALS");
+        }
         achievement("tron-pilot", "GRID PILOT");
       }
     }, { passive: true });
