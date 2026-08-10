@@ -172,13 +172,71 @@
     <p>Command deck vocabulary: <b>help effects status palette glitch degauss noise stars invert mirror pause game clear reboot root</b></p>`;
   manual.appendChild(manualBody);
 
-  const launcher = el("button", "toy-button toy-launcher", "[?] FIELD MANUAL");
+  const launcher = el("button", "toy-button toy-launcher dvd-bouncer", "[?] FIELD MANUAL");
   launcher.type = "button";
   launcher.addEventListener("click", () => {
     manual.hidden = !manual.hidden;
     if (!manual.hidden) achievement("manual", "READ THE MANUAL");
   });
   body.appendChild(launcher);
+
+  function startDvdBouncers() {
+    const nodes = [...document.querySelectorAll(".dvd-bouncer")];
+    if (!nodes.length) return;
+
+    const padding = 6;
+    const bouncers = nodes.map((node, index) => {
+      const rect = node.getBoundingClientRect();
+      const maxX = Math.max(padding, innerWidth - rect.width - padding);
+      const maxY = Math.max(padding, innerHeight - rect.height - padding);
+      const angle = .47 + index * 1.19;
+      return {
+        node,
+        width: rect.width,
+        height: rect.height,
+        x: padding + ((index * 173 + 31) % Math.max(1, maxX - padding)),
+        y: padding + ((index * 109 + 67) % Math.max(1, maxY - padding)),
+        vx: Math.cos(angle) * (42 + index * 4),
+        vy: Math.sin(angle) * (42 + index * 4)
+      };
+    });
+
+    let previous = performance.now();
+    function move(now) {
+      const elapsed = Math.min((now - previous) / 1000, .05);
+      previous = now;
+
+      for (const item of bouncers) {
+        item.x += item.vx * elapsed;
+        item.y += item.vy * elapsed;
+        const maxX = Math.max(padding, innerWidth - item.width - padding);
+        const maxY = Math.max(padding, innerHeight - item.height - padding);
+
+        if (item.x <= padding || item.x >= maxX) {
+          item.x = Math.max(padding, Math.min(maxX, item.x));
+          item.vx *= -1;
+        }
+        if (item.y <= padding || item.y >= maxY) {
+          item.y = Math.max(padding, Math.min(maxY, item.y));
+          item.vy *= -1;
+        }
+        item.node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
+      }
+      requestAnimationFrame(move);
+    }
+
+    if (reduceMotion) {
+      bouncers.forEach((item, index) => {
+        item.x = padding + index * 8;
+        item.y = padding + index * (item.height + 5);
+        item.node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
+      });
+      return;
+    }
+    requestAnimationFrame(move);
+  }
+
+  startDvdBouncers();
 
   const deck = makePanel("command-deck", "LOCAL CONSOLE // TTY7");
   const deckBody = el("div", "toy-panel-body");

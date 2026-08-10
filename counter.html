@@ -10,11 +10,24 @@ html, body {
   height: 18px;
   margin: 0;
   overflow: hidden;
-  color: #00ff00;
+  color: transparent;
   background: transparent;
-  font: 11px/18px "Courier New", monospace;
+  font: 0/0 sans-serif;
 }
-a, img { max-width: 72px; max-height: 18px; border: 0; }
+a {
+  display: block;
+  width: 72px;
+  height: 18px;
+  overflow: hidden;
+  color: transparent !important;
+  font-size: 0 !important;
+}
+img {
+  display: block;
+  max-width: 72px;
+  max-height: 18px;
+  border: 0;
+}
 </style>
 </head>
 <body>
