@@ -468,13 +468,15 @@
       if (unit.cooldown > 0) return;
       unit.cooldown = unit.type === "plane" ? .28 : .55;
       const muzzle = unit.radius + 7;
+      const shotSpeed = unit.type === "tank" ? 390 : 310;
       shots.push({
         team: unit.team,
+        type: unit.type === "tank" ? "tracer" : "bolt",
         x: unit.x + Math.cos(unit.angle) * muzzle,
         y: unit.y + Math.sin(unit.angle) * muzzle,
-        vx: Math.cos(unit.angle) * 310,
-        vy: Math.sin(unit.angle) * 310,
-        life: 2
+        vx: Math.cos(unit.angle) * shotSpeed,
+        vy: Math.sin(unit.angle) * shotSpeed,
+        life: unit.type === "tank" ? 3.4 : 2
       });
     }
 
@@ -566,6 +568,7 @@
       context.closePath();
       context.moveTo(3, 0); context.lineTo(-9, -18);
       context.moveTo(3, 0); context.lineTo(-9, 18);
+      context.moveTo(-9, -18); context.lineTo(-9, 18);
       context.stroke();
     }
 
@@ -651,9 +654,19 @@
       context.globalCompositeOperation = "lighter";
       shots.forEach(shot => {
         context.fillStyle = colors[shot.team];
+        context.strokeStyle = colors[shot.team];
         context.shadowColor = colors[shot.team];
         context.shadowBlur = 9;
-        context.fillRect(shot.x - 2, shot.y - 2, 4, 4);
+        if (shot.type === "tracer") {
+          const speed = Math.hypot(shot.vx, shot.vy) || 1;
+          context.lineWidth = 2;
+          context.beginPath();
+          context.moveTo(shot.x, shot.y);
+          context.lineTo(shot.x - shot.vx / speed * 18, shot.y - shot.vy / speed * 18);
+          context.stroke();
+        } else {
+          context.fillRect(shot.x - 2, shot.y - 2, 4, 4);
+        }
       });
       units.filter(unit => unit.active).forEach(drawUnit);
       context.globalCompositeOperation = "source-over";
