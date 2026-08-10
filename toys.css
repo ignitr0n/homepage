@@ -85,13 +85,12 @@ body[data-palette="red-alert"] {
   cursor: help;
 }
 
-.counter-value,
-.counter-value img,
-.counter-value a {
-  display: inline-flex;
-  align-items: center;
-  max-height: 16px;
-  color: inherit;
+.counter-frame {
+  width: 72px;
+  height: 18px;
+  border: 0;
+  color-scheme: dark;
+  background: transparent;
 }
 
 .toy-launcher {

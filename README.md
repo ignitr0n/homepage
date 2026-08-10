@@ -14,3 +14,5 @@ The site is a static page with an interactive hexadecimal navigation field, them
 - Further key sequences, logo clicks, console commands, and achievements are deliberately undocumented.
 
 The original terminal and music logic remain inline in `index.html`. The optional interaction layer is isolated in `toys.css` and `toys.js`.
+
+The third-party visitor script runs inside `counter.html`, preventing its synchronous `document.write()` chain from blocking the main document.
