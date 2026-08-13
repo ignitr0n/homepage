@@ -158,6 +158,16 @@ body[data-palette="red-alert"] {
   letter-spacing: 8px;
 }
 
+.bouncing-skull {
+  width: 100px;
+  height: 130px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 8px rgba(var(--toy-rgb), .72));
+  pointer-events: none;
+  user-select: none;
+}
+
 .toy-launcher {
   position: fixed;
   left: 0;
