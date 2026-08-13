@@ -204,7 +204,7 @@
 
     function positionBouncer(item) {
       const facing = item.node.classList.contains("bouncing-skull")
-        ? ` scaleX(${item.vx < 0 ? 1 : -1})`
+        ? ` scaleX(${item.vx < 0 ? -1 : 1})`
         : "";
       item.node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)${facing}`;
     }
