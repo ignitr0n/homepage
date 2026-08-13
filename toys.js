@@ -202,6 +202,13 @@
       };
     });
 
+    function positionBouncer(item) {
+      const facing = item.node.classList.contains("bouncing-skull")
+        ? ` scaleX(${item.vx < 0 ? 1 : -1})`
+        : "";
+      item.node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)${facing}`;
+    }
+
     let previous = performance.now();
     function move(now) {
       const elapsed = Math.min((now - previous) / 1000, .05);
@@ -221,7 +228,7 @@
           item.y = Math.max(padding, Math.min(maxY, item.y));
           item.vy *= -1;
         }
-        item.node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
+        positionBouncer(item);
       }
       requestAnimationFrame(move);
     }
@@ -230,7 +237,7 @@
       bouncers.forEach((item, index) => {
         item.x = padding + index * 8;
         item.y = padding + index * (item.height + 5);
-        item.node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
+        positionBouncer(item);
       });
       return;
     }
